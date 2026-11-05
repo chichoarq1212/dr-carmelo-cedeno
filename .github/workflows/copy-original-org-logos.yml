@@ -6,7 +6,12 @@ on:
       - main
     paths-ignore:
       - "public/assets/org-logos/**"
+      - "src/index.js"
   workflow_dispatch:
+
+concurrency:
+  group: copy-original-organization-logos
+  cancel-in-progress: false
 
 permissions:
   contents: write
