@@ -47,7 +47,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/assets/org-logos/")) {
-      const slug = url.pathname.slice("/assets/org-logos/".length).replace(/\\.(webp|png|jpe?g|svg)$/i, "");
+      const slug = url.pathname.slice("/assets/org-logos/".length);
       const id = LOGOS[slug];
       if (!id) return new Response("Logo no encontrado", { status: 404 });
       const cacheKey = new Request(url.origin + url.pathname, { method: "GET" });
