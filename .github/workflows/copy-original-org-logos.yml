@@ -1,12 +1,6 @@
 name: Copy original organization logos
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "public/assets/org-logos/**"
-      - "src/index.js"
   workflow_dispatch:
 
 concurrency:
