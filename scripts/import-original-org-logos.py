@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Copy the original organization logo images from the Dr. Carmelo Google Site.
+"""Copy original organization logos from the original Google Sites page.
 
-The original image files are downloaded as-is; no logo is redrawn or recolored.
-Only transparent outer padding is trimmed. Local lossless WebP copies are stored
-in public/assets/org-logos/ and the Worker ID map is refreshed from the source.
+Images are downloaded from their source URLs and saved locally as lossless WebP.
+No logo is redrawn, recolored, or otherwise redesigned.
 """
 from __future__ import annotations
 
 import base64
 import re
 import sys
+import unicodedata
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urljoin
@@ -33,8 +33,7 @@ logo_block = re.search(r"const LOGOS\s*=\s*\{(.*?)\};", WORKER, re.S)
 if not source_match or not logo_block:
     raise SystemExit("No se pudo leer la página original o el mapa de logos del Worker.")
 ORG_PAGE = source_match.group(1)
-BIOGRAPHY_PAGE = "https://sites.google.com/view/drcarmelocedeno/biograf%C3%ADa?pli=1&authuser=0"
-LOGOS = dict(re.findall(r'"([^"]+)"\s*:\s*"([^"]+)"', logo_block.group(1)))
+SLUGS = re.findall(r'"([^"]+)"\s*:', logo_block.group(1))
 
 targets = {}
 for tag in re.findall(r"<img\b[^>]*data-org-logo[^>]*>", HTML, re.I | re.S):
@@ -44,14 +43,19 @@ for tag in re.findall(r"<img\b[^>]*data-org-logo[^>]*>", HTML, re.I | re.S):
         slug = src.group(1).rstrip("/").split("/")[-1]
         targets[slug] = alt.group(1)
 
-if len(LOGOS) != 15 or len(targets) != 15:
+if len(SLUGS) != 15 or len(targets) != 15:
     raise SystemExit(
-        f"Se esperaban 15 organizaciones; mapa={len(LOGOS)}, tarjetas={len(targets)}."
+        f"Se esperaban 15 organizaciones; mapa={len(SLUGS)}, tarjetas={len(targets)}."
     )
 
 def normalize(value: str) -> set[str]:
-    words = re.findall(r"[a-z0-9áéíóúñ]+", value.lower())
-    ignored = {"logotipo", "logo", "original", "de", "del", "la", "el", "y", "por", "para", "con"}
+    folded = unicodedata.normalize("NFKD", value.lower())
+    folded = "".join(ch for ch in folded if not unicodedata.combining(ch))
+    words = re.findall(r"[a-z0-9]+", folded)
+    ignored = {
+        "logotipo", "logo", "original", "de", "del", "la", "el", "y",
+        "por", "para", "con", "las", "los", "asociacion",
+    }
     return {word for word in words if word not in ignored and len(word) > 2}
 
 def srcset_urls(srcset: str) -> list[str]:
@@ -68,18 +72,12 @@ def srcset_urls(srcset: str) -> list[str]:
         candidates.append((width, bits[0]))
     return [url for _, url in sorted(candidates, reverse=True)]
 
-def collect_images(page):
-    records = []
-    for frame in page.frames:
-        try:
-            rows = frame.locator("img").evaluate_all(
-                """els => els.map(img => {
-                    let node = img;
-                    const context = [];
-                    for (let i = 0; i < 4 && node; i++, node = node.parentElement) {
-                        const value = (node.innerText || node.textContent || '').trim();
-                        context.push(value.slice(0, 500));
-                    }
+def frame_snapshot(frame):
+    try:
+        return frame.locator("body").evaluate(
+            """body => {
+                const imageData = [...document.images].map(img => {
+                    const r = img.getBoundingClientRect();
                     return {
                         src: img.currentSrc || img.src || '',
                         rawSrc: img.getAttribute('src') || '',
@@ -88,48 +86,32 @@ def collect_images(page):
                         alt: img.getAttribute('alt') || '',
                         width: img.naturalWidth || img.width || 0,
                         height: img.naturalHeight || img.height || 0,
-                        context,
-                        outer: img.outerHTML || ''
+                        x: r.x, y: r.y, w: r.width, h: r.height
                     };
-                })"""
-            )
-            for row in rows:
-                row["frame_url"] = frame.url
-                records.append(row)
-        except Exception:
-            continue
-    return records
-
-def collect_org_links(page):
-    try:
-        links = page.locator("a").evaluate_all(
-            """els => els.map(a => ({
-                href: a.href || '',
-                text: (a.innerText || a.getAttribute('aria-label') || '').trim()
-            }))"""
+                });
+                const textData = [...document.querySelectorAll(
+                    'h1,h2,h3,h4,h5,p,div,span,li,a,td,th'
+                )].map(el => {
+                    const text = (el.innerText || el.textContent || '').trim();
+                    if (!text || text.length > 360) return null;
+                    const r = el.getBoundingClientRect();
+                    return {
+                        text, x: r.x, y: r.y, w: r.width, h: r.height,
+                        tag: el.tagName.toLowerCase()
+                    };
+                }).filter(Boolean);
+                return { images: imageData, texts: textData };
+            }"""
         )
     except Exception:
-        return []
-    return [
-        item["href"] for item in links
-        if item.get("href") and "#" not in item["href"] and (
-            "organiz" in (item.get("href", "") + " " + item.get("text", "")).lower()
-            or "participación" in (item.get("href", "") + " " + item.get("text", "")).lower()
-        )
-    ]
+        return {"images": [], "texts": []}
 
-def image_bytes(page, record, image_id):
+def image_bytes(page, record):
     candidates = []
     for value in (record.get("src"), record.get("rawSrc"), record.get("dataSrc")):
         if value:
-            candidates.append(urljoin(page.url, value))
-    candidates.extend(urljoin(page.url, value) for value in srcset_urls(record.get("srcset", "")))
-    candidates.extend([
-        f"https://sites.google.com/sitesv-images-rt/{image_id}=w1600",
-        f"https://sites.google.com/sitesv-images-rt/{image_id}=w1280",
-        f"https://lh7-rt.googleusercontent.com/rd-sitesv-images-rt/{image_id}=w1600",
-        f"https://lh7-rt.googleusercontent.com/rd-sitesv-images-rt/{image_id}",
-    ])
+            candidates.append(urljoin(ORG_PAGE, value))
+    candidates.extend(urljoin(ORG_PAGE, value) for value in srcset_urls(record.get("srcset", "")))
 
     seen = set()
     for url in candidates:
@@ -193,168 +175,121 @@ with sync_playwright() as playwright:
         locale="es-PR",
     )
     page = context.new_page()
-    records = []
-    visited = set()
-    pending = [ORG_PAGE, BIOGRAPHY_PAGE]
+    response = page.goto(ORG_PAGE, wait_until="domcontentloaded", timeout=90000)
+    if response is None or not response.ok:
+        raise SystemExit(f"No se pudo abrir el directorio original: {response.status if response else 'sin respuesta'}.")
+    try:
+        page.wait_for_load_state("networkidle", timeout=20000)
+    except Exception:
+        pass
+    page.wait_for_timeout(3000)
+    for _ in range(12):
+        page.evaluate("window.scrollBy(0, Math.max(window.innerHeight, 700))")
+        page.wait_for_timeout(300)
+    page.evaluate("window.scrollTo(0, 0)")
+    page.wait_for_timeout(700)
 
-    while pending and len(visited) < 4:
-        candidate = pending.pop(0)
-        if candidate in visited:
-            continue
-        visited.add(candidate)
-        try:
-            response = page.goto(candidate, wait_until="domcontentloaded", timeout=90000)
-            if response is None or not response.ok:
-                print(f"Página no disponible: {candidate} ({response.status if response else 'sin respuesta'})")
-                continue
-            try:
-                page.wait_for_load_state("networkidle", timeout=20000)
-            except Exception:
-                pass
-            page.wait_for_timeout(2500)
-            pending.extend(link for link in collect_org_links(page) if link not in visited)
-            for _ in range(10):
-                page.evaluate("window.scrollBy(0, Math.max(window.innerHeight, 700))")
-                page.wait_for_timeout(250)
-            page.evaluate("window.scrollTo(0, 0)")
-            page.wait_for_timeout(500)
-            found = collect_images(page)
-            print(
-                f"Página revisada: {page.url} | título={page.title()!r} "
-                f"| imágenes={len(found)}"
-            )
-            for record in found:
-                record["page_url"] = page.url
-                records.append(record)
-        except Exception as error:
-            print(f"No se pudo inspeccionar {candidate}: {error}")
+    snapshots = []
+    for frame in page.frames:
+        snapshot = frame_snapshot(frame)
+        if snapshot["images"]:
+            snapshots.append({
+                "frame_url": frame.url,
+                "images": snapshot["images"],
+                "texts": snapshot["texts"],
+            })
 
-    # Keep one record per original image URL.
-    unique = []
-    seen_records = set()
-    for record in records:
-        key = record.get("src") or record.get("rawSrc") or record.get("dataSrc")
-        if key and key not in seen_records:
-            seen_records.add(key)
-            unique.append(record)
-    records = unique
-    print(f"Total de imágenes originales inspeccionadas: {len(records)}")
+    print(
+        f"Directorio original abierto: {page.url} | título={page.title()!r} "
+        f"| marcos con imágenes={len(snapshots)}"
+    )
 
-    used_sources = set()
-    matched_ids = {}
-    failures = []
+    matches = {}
+    used_images = set()
 
-    for slug, image_id in LOGOS.items():
-        target_alt = targets.get(slug, slug.replace("-", " "))
-        target_words = normalize(target_alt)
-        matched = None
-
-        # Exact original Google Sites image ID: this is the authoritative match.
-        for record in records:
-            combined = " ".join([
-                record.get("src", ""),
-                record.get("rawSrc", ""),
-                record.get("dataSrc", ""),
-                record.get("srcset", ""),
-                record.get("outer", ""),
-            ])
-            if image_id in combined:
-                matched = record
-                break
-
+    for slug in SLUGS:
+        target = targets[slug]
+        target_words = normalize(target)
         ranked = []
-        for record in records:
-            source = record.get("src") or record.get("rawSrc") or record.get("dataSrc")
-            if not source or source in used_sources:
-                continue
-            context_values = [record.get("alt", "")] + [
-                value for value in record.get("context", [])
-                if value and len(value) <= 250
-            ]
-            score = max(
-                (len(target_words & normalize(value)) / max(1, len(target_words))
-                 for value in context_values),
-                default=0,
-            )
-            if score:
-                ranked.append((score, record))
-        ranked.sort(key=lambda item: item[0], reverse=True)
-        if matched is None and ranked and ranked[0][0] >= 0.35:
-            tied = [
-                item for item in ranked
-                if abs(item[0] - ranked[0][0]) < 0.08
-            ]
-            matched = ranked[0][1] if len(tied) == 1 else None
-        elif matched is None:
-            matched = None
 
-        # The original Google Sites directory page contains one site-wide
-        # lighthouse/header image followed by the 15 organization emblems in
-        # the same order as the directory entries. Use those original image
-        # elements directly; do not substitute third-party logos.
-        if matched is None:
-            org_page_records = [
-                record for record in records
-                if record.get("page_url", "").split("#")[0] == ORG_PAGE
-                and "sites.google.com/sitesv-images-rt/" in (
-                    record.get("src") or record.get("rawSrc") or ""
+        for snapshot in snapshots:
+            images = [
+                image for image in snapshot["images"]
+                if "sites.google.com/sitesv-images-rt/" in (
+                    image.get("src", "") or image.get("rawSrc", "")
                 )
-                and int(record.get("width") or 0) >= 24
-                and int(record.get("height") or 0) >= 24
+                and int(image.get("width") or 0) >= 24
+                and int(image.get("height") or 0) >= 24
             ]
-            if len(org_page_records) == 16:
-                logo_records = org_page_records[1:]
-                matched = logo_records[list(LOGOS).index(slug)]
+            for text_item in snapshot["texts"]:
+                words = normalize(text_item["text"])
+                score = len(target_words & words) / max(1, len(target_words))
+                if score < 0.45:
+                    continue
+                tx = text_item["x"] + text_item["w"] / 2
+                ty = text_item["y"] + text_item["h"] / 2
+                for image in images:
+                    source = image.get("src") or image.get("rawSrc") or ""
+                    if source in used_images:
+                        continue
+                    ix = image["x"] + image["w"] / 2
+                    iy = image["y"] + image["h"] / 2
+                    distance = ((ix - tx) ** 2 + (iy - ty) ** 2) ** 0.5
+                    ranked.append((score, distance, image, text_item["text"], snapshot["frame_url"]))
+
+        ranked.sort(key=lambda item: (-item[0], item[1]))
+        matched = None
+        if ranked:
+            best_score, best_distance, best_image, best_text, best_frame = ranked[0]
+            # Prefer a text/image pair in the same card or immediately adjacent block.
+            if best_score >= 0.45 and best_distance <= 650:
+                matched = best_image
+                print(
+                    f"ASOCIADO {slug}: score={best_score:.2f}, distancia={best_distance:.0f}px, "
+                    f"texto={best_text[:120]!r}"
+                )
 
         if matched is None:
-            failures.append(f"{slug}: no se encontró imagen asociada a {target_alt}")
+            print(f"NO ASOCIADO {slug}: {target!r}")
             continue
 
-        source = matched.get("src") or matched.get("rawSrc") or matched.get("dataSrc") or ""
-        id_match = re.search(r"sitesv-images-rt/([^=?]+)", source)
-        image_id = id_match.group(1) if id_match else ""
+        source = matched.get("src") or matched.get("rawSrc") or ""
+        image_id_match = re.search(r"sitesv-images-rt/([^=?]+)", source)
+        image_id = image_id_match.group(1) if image_id_match else ""
         if not image_id:
-            failures.append(f"{slug}: no se pudo extraer el ID de la imagen original ({source})")
+            print(f"ID NO ENCONTRADO para {slug}: {source}")
             continue
 
-        data, content_type = image_bytes(page, matched, image_id)
+        data, content_type = image_bytes(page, matched)
         if not data:
-            failures.append(f"{slug}: no se pudo descargar el archivo original ({source})")
+            print(f"DESCARGA FALLIDA para {slug}: {source}")
             continue
 
         destination = DEST / f"{slug}.webp"
         try:
             dimensions = save_lossless_webp(data, content_type or "image/*", destination)
-            used_sources.add(source)
-            matched_ids[slug] = image_id
+            used_images.add(source)
+            matches[slug] = image_id
             print(
                 f"OK {slug}: {dimensions[0]}x{dimensions[1]} "
-                f"({destination.stat().st_size} bytes) | contexto={matched.get('context', [])[:3]}"
+                f"({destination.stat().st_size} bytes)"
             )
         except Exception as error:
-            failures.append(f"{slug}: {error}")
+            print(f"PROCESAMIENTO FALLIDO {slug}: {error}")
 
-    if failures:
-        print("Imágenes detectadas para diagnóstico:", file=sys.stderr)
-        for index, record in enumerate(records):
-            print(
-                f"IMG {index}: SRC={record.get('src') or record.get('rawSrc')!r} "
-                f"ALT={record.get('alt')!r} CONTEXTO={record.get('context', [])[:4]!r}",
-                file=sys.stderr,
-            )
-        browser.close()
-        for failure in failures:
-            print("ERROR:", failure, file=sys.stderr)
-        raise SystemExit(f"No se completó la copia de los 15 logos ({len(failures)} pendientes).")
-
-    # Refresh the Worker fallback IDs with the exact source-page IDs.
-    new_lines = ["const LOGOS = {"]
-    for slug in LOGOS:
-        new_lines.append(f'  "{slug}": "{matched_ids[slug]}",')
-    new_lines.append("};")
-    new_block = "\n".join(new_lines)
-    WORKER = re.sub(r"const LOGOS\s*=\s*\{.*?\};", new_block, WORKER, count=1, flags=re.S)
-    WORKER_PATH.write_text(WORKER, encoding="utf-8")
     browser.close()
 
-print(f"LISTO: se copiaron los 15 logotipos originales a {DEST} y se actualizaron sus IDs.")
+if len(matches) != 15:
+    raise SystemExit(
+        f"Solo se pudieron asociar y guardar {len(matches)} de 15 logotipos originales."
+    )
+
+new_lines = ["const LOGOS = {"]
+for slug in SLUGS:
+    new_lines.append(f'  "{slug}": "{matches[slug]}",')
+new_lines.append("};")
+new_block = "\n".join(new_lines)
+WORKER = re.sub(r"const LOGOS\s*=\s*\{.*?\};", new_block, WORKER, count=1, flags=re.S)
+WORKER_PATH.write_text(WORKER, encoding="utf-8")
+
+print(f"LISTO: 15 logotipos originales guardados en {DEST}; IDs del Worker actualizados.")
