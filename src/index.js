@@ -50,6 +50,16 @@ export default {
       const slug = url.pathname.slice("/assets/org-logos/".length);
       const id = LOGOS[slug];
       if (!id) return new Response("Logo no encontrado", { status: 404 });
+      // Prefer a locally stored copy of the original logo. This keeps the
+      // gallery independent from Google Sites availability and hotlink rules.
+      const localUrl = new URL(`/assets/org-logos/${slug}.webp`, url.origin);
+      const localResponse = await env.ASSETS.fetch(new Request(localUrl, { method: "GET" }));
+      if (localResponse.ok) {
+        const headers = new Headers(localResponse.headers);
+        headers.set("Cache-Control", "public, max-age=31536000, immutable");
+        headers.set("X-Content-Type-Options", "nosniff");
+        return new Response(localResponse.body, { status: 200, headers });
+      }
       const cacheKey = new Request(url.origin + url.pathname, { method: "GET" });
       const cache = caches.default;
       const cached = await cache.match(cacheKey);
