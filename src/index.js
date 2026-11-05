@@ -1,4 +1,4 @@
-const SOURCE_PAGE = "https://sites.google.com/view/drcarmelocedeno/organizaciones-a-que-pertenece";
+const SOURCE_PAGE = "https://sites.google.com/view/drcarmelocedeno/biograf%C3%ADa?pli=1&authuser=0";
 const LOGOS = {
   "fundacion-juventudes": "AMxu72ucazB8ezXPgcBrXiJimbIcgFzblvoCOG_0BUmXG4bg4xtOYNeQPy0jgmZdO4mmHfqoPb5RQ4g4jSIFxtvKlEJ9wQA8ttxAvgethhlnyNhhgtlQP6-LJa_-57Njl2vpyNAgXFJ4UcULDICqVX27NZ05uFo_sIfMml9dmwnKsHqrO_PBHfmksAandVzqjQ",
   "fundacion-educando-amor": "AMxu72sjHordKAeQQr6snCmaRICmse1eGBTfbKZrnLoXFrw57PRjMTrQiC-GxrfhY_bX9hzE6gNq0ZRsW5WKe-IshPcDslFTJ00FX9kW54zBdo2tpi7-uJWkje8J7yL9Q_DZCNS3BZTOaHS5bquwKKktNNi2z3G3CPZJtTfEqxZimZ80IThkhq2hrjej1lGq",
