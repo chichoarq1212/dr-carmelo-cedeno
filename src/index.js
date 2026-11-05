@@ -22,10 +22,12 @@ function isImageResponse(response) {
 }
 
 async function fetchLogo(id) {
-  const headers = {
-    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-    "Referer": SOURCE_PAGE,
-    "User-Agent": "Mozilla/5.0 (compatible; DrCarmeloSite/1.0; +https://dr-carmelo-cedeno.cristhian-torres-arq.workers.dev/)"
+  const options = {
+    headers: { "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8" },
+    referrer: SOURCE_PAGE,
+    referrerPolicy: "unsafe-url",
+    redirect: "follow",
+    cf: { cacheEverything: true, cacheTtl: 86400 }
   };
   const candidates = [
     `https://sites.google.com/sitesv-images-rt/${id}=w1280`,
@@ -34,7 +36,7 @@ async function fetchLogo(id) {
   ];
   for (const source of candidates) {
     try {
-      const response = await fetch(source, { headers, redirect: "follow", cf: { cacheEverything: true, cacheTtl: 86400 } });
+      const response = await fetch(source, options);
       if (isImageResponse(response)) return response;
     } catch (_) {}
   }
