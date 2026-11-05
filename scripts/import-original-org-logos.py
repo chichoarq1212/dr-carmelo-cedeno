@@ -76,7 +76,7 @@ def collect_images(page):
                 """els => els.map(img => {
                     let node = img;
                     const context = [];
-                    for (let i = 0; i < 7 && node; i++, node = node.parentElement) {
+                    for (let i = 0; i < 4 && node; i++, node = node.parentElement) {
                         const value = (node.innerText || node.textContent || '').trim();
                         context.push(value.slice(0, 500));
                     }
@@ -252,7 +252,10 @@ with sync_playwright() as playwright:
             source = record.get("src") or record.get("rawSrc") or record.get("dataSrc")
             if not source or source in used_sources:
                 continue
-            context_values = [record.get("alt", "")] + record.get("context", [])
+            context_values = [record.get("alt", "")] + [
+                value for value in record.get("context", [])
+                if value and len(value) <= 250
+            ]
             score = max(
                 (len(target_words & normalize(value)) / max(1, len(target_words))
                  for value in context_values),
@@ -261,7 +264,14 @@ with sync_playwright() as playwright:
             if score:
                 ranked.append((score, record))
         ranked.sort(key=lambda item: item[0], reverse=True)
-        matched = ranked[0][1] if ranked and ranked[0][0] >= 0.35 else None
+        if ranked and ranked[0][0] >= 0.35:
+            tied = [
+                item for item in ranked
+                if abs(item[0] - ranked[0][0]) < 0.08
+            ]
+            matched = ranked[0][1] if len(tied) == 1 else None
+        else:
+            matched = None
 
         # Last-resort ordering: the original directory places the 15 logo images
         # consecutively after the page header/social icons. Use only when exactly
