@@ -244,9 +244,24 @@ with sync_playwright() as playwright:
     matched_ids = {}
     failures = []
 
-    for slug in LOGOS:
+    for slug, image_id in LOGOS.items():
         target_alt = targets.get(slug, slug.replace("-", " "))
         target_words = normalize(target_alt)
+        matched = None
+
+        # Exact original Google Sites image ID: this is the authoritative match.
+        for record in records:
+            combined = " ".join([
+                record.get("src", ""),
+                record.get("rawSrc", ""),
+                record.get("dataSrc", ""),
+                record.get("srcset", ""),
+                record.get("outer", ""),
+            ])
+            if image_id in combined:
+                matched = record
+                break
+
         ranked = []
         for record in records:
             source = record.get("src") or record.get("rawSrc") or record.get("dataSrc")
@@ -264,13 +279,13 @@ with sync_playwright() as playwright:
             if score:
                 ranked.append((score, record))
         ranked.sort(key=lambda item: item[0], reverse=True)
-        if ranked and ranked[0][0] >= 0.35:
+        if matched is None and ranked and ranked[0][0] >= 0.35:
             tied = [
                 item for item in ranked
                 if abs(item[0] - ranked[0][0]) < 0.08
             ]
             matched = ranked[0][1] if len(tied) == 1 else None
-        else:
+        elif matched is None:
             matched = None
 
         # Last-resort ordering: the original directory places the 15 logo images
