@@ -168,6 +168,12 @@ def save_lossless_webp(data: bytes, content_type: str, destination: Path):
 
 DEST.mkdir(parents=True, exist_ok=True)
 
+# This was a one-time migration. Preserve the exact local assets and avoid
+# re-scraping Google Sites once all 15 original logo files are present.
+if all((DEST / f"{slug}.webp").is_file() for slug in SLUGS):
+    print(f"LISTO: los 15 logotipos originales ya están guardados en {DEST}.")
+    raise SystemExit(0)
+
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True)
     context = browser.new_context(
