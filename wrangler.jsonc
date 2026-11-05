@@ -5,10 +5,7 @@
   "assets": {
     "directory": "./public",
     "not_found_handling": "404-page",
-    "binding": "ASSETS",
-    "run_worker_first": [
-      "/assets/org-logos/*"
-    ]
+    "binding": "ASSETS"
   },
   "main": "src/index.js"
 }
