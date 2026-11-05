@@ -47,7 +47,8 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/assets/org-logos/")) {
-      const slug = url.pathname.slice("/assets/org-logos/".length);
+      const requestedSlug = url.pathname.slice("/assets/org-logos/".length);
+      const slug = requestedSlug.replace(/\.webp$/i, "");
       const id = LOGOS[slug];
       if (!id) return new Response("Logo no encontrado", { status: 404 });
       // Prefer a locally stored copy of the original logo. This keeps the
