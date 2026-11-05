@@ -251,6 +251,28 @@ with sync_playwright() as playwright:
                     f"texto={best_text[:120]!r}"
                 )
 
+        if matched is None and slug == "comites-internacionales":
+            # The final committee emblem is the last remaining source-page logo.
+            # The page header emblem is also unused, but it sits at the top;
+            # choose the remaining original logo image lowest on the directory.
+            remaining = []
+            for snapshot in snapshots:
+                for image in snapshot["images"]:
+                    source_candidate = image.get("src") or image.get("rawSrc") or ""
+                    if (
+                        "sites.google.com/sitesv-images-rt/" in source_candidate
+                        and source_candidate not in used_images
+                        and int(image.get("width") or 0) >= 24
+                        and int(image.get("height") or 0) >= 24
+                    ):
+                        remaining.append(image)
+            if remaining:
+                matched = max(remaining, key=lambda image: image.get("y", 0))
+                print(
+                    f"ASOCIADO {slug} por posición final: "
+                    f"y={matched.get('y', 0):.0f}px"
+                )
+
         if matched is None:
             print(f"NO ASOCIADO {slug}: {target!r}")
             continue
