@@ -288,9 +288,10 @@ with sync_playwright() as playwright:
         elif matched is None:
             matched = None
 
-        # Last-resort ordering: the original directory places the 15 logo images
-        # consecutively after the page header/social icons. Use only when exactly
-        # 15 Google Sites image assets remain in the original directory page.
+        # The original Google Sites directory page contains one site-wide
+        # lighthouse/header image followed by the 15 organization emblems in
+        # the same order as the directory entries. Use those original image
+        # elements directly; do not substitute third-party logos.
         if matched is None:
             org_page_records = [
                 record for record in records
@@ -301,8 +302,9 @@ with sync_playwright() as playwright:
                 and int(record.get("width") or 0) >= 24
                 and int(record.get("height") or 0) >= 24
             ]
-            if len(org_page_records) == 15:
-                matched = org_page_records[list(LOGOS).index(slug)]
+            if len(org_page_records) == 16:
+                logo_records = org_page_records[1:]
+                matched = logo_records[list(LOGOS).index(slug)]
 
         if matched is None:
             failures.append(f"{slug}: no se encontró imagen asociada a {target_alt}")
