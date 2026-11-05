@@ -1,44 +1,33 @@
 # Dr. Carmelo Cedeño De la Rosa — Sitio institucional
 
-Sitio web estático desarrollado con HTML, CSS y JavaScript. No requiere Node.js ni proceso de compilación.
+Sitio web profesional y adaptable a móviles, construido con HTML, CSS y JavaScript, alojado en GitHub y preparado para publicarse en **Cloudflare Workers Static Assets**.
 
-## Estructura
+## Publicación en Cloudflare Workers
 
-- `index.html`: página principal y ocho secciones institucionales.
-- `assets/css/styles.css`: diseño adaptable a escritorio, tablet y móvil.
-- `assets/js/app.js`: menú móvil, búsqueda, navegación activa, filtros y formulario de contacto.
-- `assets/img/logo-carmelo-github.webp`: emblema oficial proporcionado para el proyecto.
-- `assets/img/favicon.svg`: icono del sitio.
+Este repositorio está configurado con `wrangler.jsonc` y los archivos públicos están organizados dentro de `public/`.
 
-## Publicar en Cloudflare Pages desde GitHub
+Configurar Workers Builds con:
+- GitHub: `chichoarq1212/dr-carmelo-cedeno`
+- Rama de producción: `main`
+- Comando de compilación: ninguno
+- Comando de implementación: `npx wrangler deploy`
+- Directorio raíz del repositorio: `/`
 
-1. En Cloudflare, abra **Workers & Pages**.
-2. Seleccione **Create application → Pages → Connect to Git**.
-3. Autorice GitHub y elija `chichoarq1212/dr-carmelo-cedeno`.
-4. Configure **Framework preset: None**.
-5. Deje **Build command** vacío.
-6. Use `.` como **Build output directory**.
-7. Guarde y despliegue.
+Wrangler detecta la configuración del repositorio, publica el contenido de `public/` y puede desplegar nuevos cambios cuando se actualiza `main`.
 
-Cada nuevo commit en la rama `main` activará una nueva publicación automática.
+## Contenido
 
-## Interacciones
+- `public/index.html`: sitio institucional y sus ocho secciones.
+- `public/assets/css/styles.css`: diseño responsive azul marino y dorado.
+- `public/assets/js/app.js`: navegación, menú móvil, búsqueda, filtros y contacto.
+- `public/assets/img/logo-carmelo-github.webp`: emblema institucional del Dr. Carmelo Cedeño.
+- `public/assets/img/favicon.svg`: icono de navegador.
+- `wrangler.jsonc`: configuración de Cloudflare Workers.
 
-- Menú adaptable a móvil.
-- Navegación con sección activa.
-- Buscador interno.
-- Acordeones de formación.
-- Filtros de publicaciones por categoría y año.
-- Formulario que prepara un correo dirigido a `info@carmelocedeno.us`; no almacena ni envía datos a un servidor.
+Los archivos equivalentes en la raíz original se conservan como copia de trabajo. El sitio que publica Workers es el contenido de `public/`.
 
-## Contenido y medios
+## Consideraciones
 
-Se han conservado los datos de contacto y las secciones del sitio de referencia. No se inventaron publicaciones, premios, fechas de eventos ni reconocimientos. Las áreas que no cuentan con registros verificables se presentan como archivos en actualización.
+El formulario de contacto prepara un correo para `info@carmelocedeno.us`; no envía ni almacena datos en un servidor. Parte de las fotos y los emblemas de otras organizaciones continúan enlazados al Google Sites original y requieren que ese sitio mantenga sus imágenes públicas.
 
-El emblema oficial está incluido en el repositorio. La fotografía del perfil y algunos logotipos de organizaciones siguen enlazados desde el sitio público original de Google Sites; conviene incorporarlos también a `assets/img` cuando se disponga de sus archivos originales autorizados para independizar completamente el sitio.
-
-## Edición
-
-- Contenido y enlaces: `index.html`
-- Colores, tipografía y distribución: `assets/css/styles.css`
-- Interacciones: `assets/js/app.js`
+No se inventaron reconocimientos o publicaciones; los apartados sin registros verificables se presentan como archivos en actualización.
