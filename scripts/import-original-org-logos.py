@@ -147,6 +147,13 @@ def save_lossless_webp(data: bytes, content_type: str, destination: Path):
 
 DEST.mkdir(parents=True, exist_ok=True)
 
+# The import is a one-time operation. Once all original assets are present,
+# subsequent workflow runs must not try to re-read a Google Sites page whose
+# media URLs may have changed. This also keeps future main-branch pushes green.
+if all((DEST / f"{slug}.webp").is_file() for slug in LOGOS):
+    print(f"LISTO: los 15 logotipos originales ya están guardados en {DEST}; no se requiere otra descarga.")
+    raise SystemExit(0)
+
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True)
     context = browser.new_context(
