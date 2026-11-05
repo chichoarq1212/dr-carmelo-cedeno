@@ -31,7 +31,9 @@ source_match = re.search(r'const SOURCE_PAGE\s*=\s*"([^"]+)"', WORKER)
 logo_block = re.search(r"const LOGOS\s*=\s*\{(.*?)\};", WORKER, re.S)
 if not source_match or not logo_block:
     raise SystemExit("No se pudo leer la página original o el mapa de logos del Worker.")
-SOURCE_PAGE = source_match.group(1)
+BIOGRAPHY_PAGE = source_match.group(1)
+OLD_ORGANIZATIONS_PAGE = "https://sites.google.com/view/drcarmelocedeno/organizaciones-a-que-pertenece"
+CANDIDATE_PAGES = [BIOGRAPHY_PAGE, OLD_ORGANIZATIONS_PAGE]
 LOGOS = dict(re.findall(r'"([^"]+)"\s*:\s*"([^"]+)"', logo_block.group(1)))
 
 targets = {}
@@ -49,7 +51,10 @@ if len(LOGOS) != 15 or len(targets) != 15:
 
 def normalize(value: str) -> set[str]:
     words = re.findall(r"[a-z0-9áéíóúñ]+", value.lower())
-    ignored = {"logotipo", "original", "de", "del", "la", "el", "y", "por", "para", "con"}
+    ignored = {
+        "logotipo", "logo", "original", "de", "del", "la", "el", "y",
+        "por", "para", "con", "internacional", "internacional",
+    }
     return {word for word in words if word not in ignored and len(word) > 2}
 
 def srcset_urls(srcset: str) -> list[str]:
@@ -89,18 +94,33 @@ def collect_images(page):
             continue
     return records
 
+def collect_org_links(page):
+    try:
+        links = page.locator("a").evaluate_all(
+            """els => els.map(a => ({
+                href: a.href || '',
+                text: (a.innerText || a.getAttribute('aria-label') || '').trim()
+            }))"""
+        )
+    except Exception:
+        return []
+    return [
+        item["href"] for item in links
+        if item.get("href") and (
+            "organiz" in (item.get("href", "") + " " + item.get("text", "")).lower()
+            or "participación" in (item.get("href", "") + " " + item.get("text", "")).lower()
+        )
+    ]
+
 def image_bytes(page, record, image_id):
     candidates = []
     for value in (record.get("src"), record.get("rawSrc"), record.get("dataSrc")):
         if value:
-            candidates.append(urljoin(SOURCE_PAGE, value))
+            candidates.append(urljoin(page.url, value))
     candidates.extend(
-        urljoin(SOURCE_PAGE, value)
+        urljoin(page.url, value)
         for value in srcset_urls(record.get("srcset", ""))
     )
-
-    # If the page markup does not expose a usable URL, try the image CDN forms
-    # associated with the same Google Sites media ID.
     candidates.extend([
         f"https://sites.google.com/sitesv-images-rt/{image_id}=w1600",
         f"https://lh7-rt.googleusercontent.com/rd-sitesv-images-rt/{image_id}=w1600",
@@ -124,7 +144,7 @@ def image_bytes(page, record, image_id):
                 url,
                 timeout=60000,
                 headers={
-                    "Referer": SOURCE_PAGE,
+                    "Referer": BIOGRAPHY_PAGE,
                     "User-Agent": USER_AGENT,
                     "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
                 },
@@ -170,31 +190,56 @@ with sync_playwright() as playwright:
         locale="es-PR",
     )
     page = context.new_page()
-    response = page.goto(SOURCE_PAGE, wait_until="domcontentloaded", timeout=90000)
-    if response is None or not response.ok:
-        status = response.status if response else "sin respuesta"
-        raise SystemExit(f"No se pudo abrir la página original: HTTP {status}.")
+    records = []
+    visited = set()
+    pending = list(CANDIDATE_PAGES)
 
-    try:
-        page.wait_for_load_state("networkidle", timeout=25000)
-    except Exception:
-        pass
-    page.wait_for_timeout(5000)
+    while pending and len(visited) < 8:
+        candidate = pending.pop(0)
+        if candidate in visited:
+            continue
+        visited.add(candidate)
+        try:
+            response = page.goto(candidate, wait_until="domcontentloaded", timeout=90000)
+            if response is None or not response.ok:
+                print(f"Página no disponible: {candidate} ({response.status if response else 'sin respuesta'})")
+                continue
+            try:
+                page.wait_for_load_state("networkidle", timeout=20000)
+            except Exception:
+                pass
+            page.wait_for_timeout(3500)
+            pending.extend(link for link in collect_org_links(page) if link not in visited)
+            for _ in range(10):
+                page.evaluate("window.scrollBy(0, Math.max(window.innerHeight, 700))")
+                page.wait_for_timeout(300)
+            page.evaluate("window.scrollTo(0, 0)")
+            page.wait_for_timeout(700)
+            found = collect_images(page)
+            print(
+                f"Página revisada: {page.url} | título={page.title()!r} "
+                f"| imágenes={len(found)}"
+            )
+            for record in found:
+                record["page_url"] = page.url
+                records.append(record)
+        except Exception as error:
+            print(f"No se pudo inspeccionar {candidate}: {error}")
 
-    # Trigger Google Sites lazy loading before reading image URLs.
-    for _ in range(12):
-        page.evaluate("window.scrollBy(0, Math.max(window.innerHeight, 700))")
-        page.wait_for_timeout(350)
-    page.evaluate("window.scrollTo(0, 0)")
-    page.wait_for_timeout(1000)
+    # Remove duplicate image records while preserving source-page order.
+    unique = []
+    seen_records = set()
+    for record in records:
+        key = (
+            record.get("src") or record.get("rawSrc") or record.get("dataSrc"),
+            record.get("alt", ""),
+        )
+        if key not in seen_records:
+            seen_records.add(key)
+            unique.append(record)
+    records = unique
 
-    records = collect_images(page)
-    if not records:
-        print("Título de la página:", page.title())
-        print("URL final:", page.url)
-        print("Texto inicial:", page.locator("body").inner_text()[:1200])
-        raise SystemExit("La página original no expuso imágenes para copiar.")
-
+    print(f"Total de imágenes originales inspeccionadas: {len(records)}")
     used_sources = set()
     failures = []
 
@@ -221,30 +266,34 @@ with sync_playwright() as playwright:
             ranked = []
             for record in records:
                 source_words = normalize(record.get("alt", ""))
-                if not source_words:
+                source = record.get("src") or record.get("rawSrc") or record.get("dataSrc")
+                if not source_words or not source or source in used_sources:
                     continue
                 score = len(target_words & source_words) / max(1, len(target_words))
-                source = record.get("src") or record.get("rawSrc")
-                if source and source not in used_sources:
-                    ranked.append((score, record))
+                ranked.append((score, record))
             if ranked:
                 ranked.sort(key=lambda item: item[0], reverse=True)
                 if ranked[0][0] >= 0.45:
                     matched = ranked[0][1]
 
         if matched is None:
-            failures.append(f"{slug}: no se encontró una imagen coincidente en la página original")
+            failures.append(f"{slug}: no se encontró imagen | alt esperado={target_alt}")
             continue
 
         data, content_type = image_bytes(page, matched, image_id)
         if not data:
-            failures.append(f"{slug}: no se pudo descargar la imagen original")
+            failures.append(
+                f"{slug}: no se pudo descargar | alt fuente={matched.get('alt', '')} "
+                f"| url={matched.get('src') or matched.get('rawSrc')}"
+            )
             continue
 
         destination = DEST / f"{slug}.webp"
         try:
             dimensions = save_lossless_webp(data, content_type or "image/*", destination)
-            used_sources.add(matched.get("src") or matched.get("rawSrc") or "")
+            used_sources.add(
+                matched.get("src") or matched.get("rawSrc") or matched.get("dataSrc") or ""
+            )
             print(
                 f"OK {slug}: {dimensions[0]}x{dimensions[1]} "
                 f"({destination.stat().st_size} bytes) | alt={matched.get('alt', '')}"
@@ -252,11 +301,18 @@ with sync_playwright() as playwright:
         except Exception as error:
             failures.append(f"{slug}: {error}")
 
-    browser.close()
+    if failures:
+        print("Imágenes detectadas (para diagnóstico):", file=sys.stderr)
+        for record in records:
+            print(
+                f"ALT={record.get('alt', '')!r} SRC={record.get('src') or record.get('rawSrc')!r}",
+                file=sys.stderr,
+            )
+        browser.close()
+        for failure in failures:
+            print("ERROR:", failure, file=sys.stderr)
+        raise SystemExit(f"No se completó la copia de los 15 logos ({len(failures)} pendientes).")
 
-if failures:
-    for failure in failures:
-        print("ERROR:", failure, file=sys.stderr)
-    raise SystemExit(f"No se completó la copia de los 15 logos ({len(failures)} pendientes).")
+    browser.close()
 
 print(f"LISTO: se copiaron los 15 logotipos originales a {DEST}.")
