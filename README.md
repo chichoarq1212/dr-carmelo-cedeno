@@ -1,33 +1,30 @@
 # Dr. Carmelo Cedeño De la Rosa — Sitio institucional
 
-Sitio web profesional y adaptable a móviles, construido con HTML, CSS y JavaScript, alojado en GitHub y preparado para publicarse en **Cloudflare Workers Static Assets**.
+Sitio web estático profesional, adaptable a móviles y preparado para Cloudflare Workers Static Assets.
 
-## Publicación en Cloudflare Workers
+## Publicación
+- Repositorio: `chichoarq1212/dr-carmelo-cedeno`
+- Rama: `main`
+- Comando Cloudflare: `npx wrangler deploy`
+- Directorio de assets: `./public`
 
-Este repositorio está configurado con `wrangler.jsonc` y los archivos públicos están organizados dentro de `public/`.
-
-Configurar Workers Builds con:
-- GitHub: `chichoarq1212/dr-carmelo-cedeno`
-- Rama de producción: `main`
-- Comando de compilación: ninguno
-- Comando de implementación: `npx wrangler deploy`
-- Directorio raíz del repositorio: `/`
-
-Wrangler detecta la configuración del repositorio, publica el contenido de `public/` y puede desplegar nuevos cambios cuando se actualiza `main`.
-
-## Contenido
-
-- `public/index.html`: sitio institucional y sus ocho secciones.
-- `public/assets/css/styles.css`: diseño responsive azul marino y dorado.
-- `public/assets/js/app.js`: navegación, menú móvil, búsqueda, filtros y contacto.
-- `public/assets/img/logo-carmelo-github.webp`: emblema institucional del Dr. Carmelo Cedeño.
-- `public/assets/img/favicon.svg`: icono de navegador.
+## Estructura
+- `public/index.html`: página principal.
+- `public/assets/css/styles.css`: diseño responsive.
+- `public/assets/js/app.js`: menú, búsqueda, filtros, acordeones y contacto.
+- `public/assets/img/carmelo-portrait.webp`: fotografía original del Dr. Carmelo, optimizada sin alterar sus rasgos.
+- `public/assets/img/logo-carmelo-github.webp`: emblema institucional.
 - `wrangler.jsonc`: configuración de Cloudflare Workers.
 
-Los archivos equivalentes en la raíz original se conservan como copia de trabajo. El sitio que publica Workers es el contenido de `public/`.
+## Galería de organizaciones
+Se conservaron las 16 denominaciones del directorio del sitio biográfico. Se reutilizan las imágenes enlazadas en la versión original y se incorporan emblemas de fuentes institucionales cuando se pudo verificar un recurso público. Para organizaciones sin imagen verificable se presenta su nombre completo como identificación tipográfica, sin inventar un logo.
 
-## Consideraciones
+## Interacciones
+- Menú móvil y navegación activa.
+- Buscador interno.
+- Acordeones de formación.
+- Filtros por tipo de organización.
+- Pestañas y años en publicaciones.
+- Formulario que prepara un correo a `info@carmelocedeno.us`; no almacena datos.
 
-El formulario de contacto prepara un correo para `info@carmelocedeno.us`; no envía ni almacena datos en un servidor. Parte de las fotos y los emblemas de otras organizaciones continúan enlazados al Google Sites original y requieren que ese sitio mantenga sus imágenes públicas.
-
-No se inventaron reconocimientos o publicaciones; los apartados sin registros verificables se presentan como archivos en actualización.
+Parte de los logotipos se sirven desde los dominios oficiales de las organizaciones y las tres imágenes recuperadas de Google Sites. Si esos servicios cambian sus rutas o bloquean la carga externa, el sitio muestra el nombre completo como respaldo.
