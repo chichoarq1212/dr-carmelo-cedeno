@@ -41,6 +41,8 @@ for tag in re.findall(r"<img\b[^>]*data-org-logo[^>]*>", HTML, re.I | re.S):
     alt = re.search(r'\balt=["\']([^"\']+)["\']', tag, re.I)
     if src and alt:
         slug = src.group(1).rstrip("/").split("/")[-1]
+        if slug.lower().endswith(".webp"):
+            slug = slug[:-5]
         targets[slug] = alt.group(1)
 
 if len(SLUGS) != 15 or len(targets) != 15:
