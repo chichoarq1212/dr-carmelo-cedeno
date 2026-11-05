@@ -43,5 +43,17 @@ jobs:
             echo "No logo changes to commit."
           else
             git commit -m "Add original organization logos as local assets"
-            git push
+            # Rebase over any site or deployment commits created while the
+            # image extraction job was running, then retry the push safely.
+            for attempt in 1 2 3; do
+              git fetch origin main
+              git rebase origin/main
+              if git push origin HEAD:main; then
+                exit 0
+              fi
+              echo "Push attempt $attempt failed; retrying after fetching main."
+              sleep 3
+            done
+            echo "Unable to push the copied logos after three attempts."
+            exit 1
           fi
